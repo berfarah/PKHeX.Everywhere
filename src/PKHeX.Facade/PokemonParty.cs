@@ -27,13 +27,16 @@ public class PokemonParty(Game game) : IMutablePokemonCollection
         {
             for (var i = 0; i < _partyData.Count; i++)
                 if (_snapshot.HasChanged(i, _partyData[i]))
-                    game.SaveFile.SetPartySlotAtIndex(_partyData[i], i, EntityImportSettings.None);
+                    game.SaveFile.SetPartySlotAtIndex(_partyData[i], i, CommitSettings.Slot);
         }
         else if (_snapshot.AnyChanged(_partyData))
         {
             var members = _partyData.Where(pkm => !Pokemon.IsBlank(pkm)).ToList();
+            // A blank filler slot must not teach the dex anything, so only real members carry the dex update.
             for (var i = 0; i < MaxPartySize; i++)
-                game.SaveFile.SetPartySlotAtIndex(i < members.Count ? members[i] : game.SaveFile.BlankPKM, i, EntityImportSettings.None);
+                game.SaveFile.SetPartySlotAtIndex(
+                    i < members.Count ? members[i] : game.SaveFile.BlankPKM, i,
+                    i < members.Count ? CommitSettings.Slot : EntityImportSettings.None);
         }
 
         _snapshot = new SlotSnapshot(_partyData);

@@ -52,11 +52,11 @@ public class PokemonBox : IMutablePokemonCollection
     {
         for (var index = 0; index < _pokemonList.Count; index++)
             if (_snapshot.HasChanged(index, _pokemonList[index].Pkm) && !_game.SaveFile.IsBoxSlotOverwriteProtected(index))
-                _game.SaveFile.SetBoxSlotAtIndex(_pokemonList[index].Pkm, index, EntityImportSettings.None);
+                _game.SaveFile.SetBoxSlotAtIndex(_pokemonList[index].Pkm, index, CommitSettings.Slot);
 
         foreach (var (index, pkm) in _party.BoxedMembers())
             if (_snapshot.HasChanged(index, pkm))
-                _game.SaveFile.SetBoxSlotAtIndex(pkm, index, EntityImportSettings.None);
+                _game.SaveFile.SetBoxSlotAtIndex(pkm, index, CommitSettings.Slot);
 
         TakeSnapshot();
     }
