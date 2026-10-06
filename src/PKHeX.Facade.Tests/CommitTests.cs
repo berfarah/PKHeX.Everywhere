@@ -85,6 +85,58 @@ public class CommitTests
         added.Owner.CurrentHandler.Should().Be(Owner.Handler.SomeoneElse);
     }
 
+    [Theory]
+    [SupportedSaveFiles]
+    public void CommittingAnEditedBoxPokemon_MarksTheNewSpeciesSeenAndCaught(string saveFile)
+    {
+        var game = SaveFilePath.Load(saveFile);
+        if (!game.SaveFile.HasPokeDex) return;
+
+        // A slot can only become another member of its own evolution family, so look for one whose
+        // family has a species the dex hasn't registered yet.
+        var candidate = game.Trainer.PokemonBox.Boxed()
+            .Where(p => p.Pokemon.IsEditable)
+            .Select(p => (p.Pokemon, To: p.Pokemon.Options().Species
+                .FirstOrDefault(c => c.Id != p.Pokemon.Species.Id && !game.SaveFile.GetCaught((ushort)c.Id))))
+            .FirstOrDefault(p => p.To is not null);
+        if (candidate.Pokemon is null) return;
+
+        var (target, to) = candidate;
+        var edited = target.Clone();
+        edited.Update(new PokemonPatch { Species = to!.Id });
+        game.Trainer.AddOrUpdate(target.UniqueId, edited, PokemonSource.Box);
+
+        game.SaveFile.GetSeen((ushort)to.Id).Should().BeTrue();
+        game.SaveFile.GetCaught((ushort)to.Id).Should().BeTrue();
+    }
+
+    [Fact]
+    public void CommittingAnEditedGen3BoxPokemon_KeepsTheThreeSeenCopiesInAgreement()
+    {
+        var game = SaveFilePath.Load(SaveFilePath.Emerald);
+        var save = (SAV3)game.SaveFile;
+
+        var (_, target) = game.Trainer.PokemonBox.Boxed().First(p => p.Pokemon.IsEditable);
+        var to = target.Options().Species.First(c => c.Id != target.Species.Id);
+
+        // The fixture has a complete Pokédex, so clear the target species first to see the commit set it.
+        save.SetSeen((ushort)to.Id, false);
+        save.SetCaught((ushort)to.Id, false);
+
+        var edited = target.Clone();
+        edited.Update(new PokemonPatch { Species = to!.Id });
+        game.Trainer.AddOrUpdate(target.UniqueId, edited, PokemonSource.Box);
+
+        save.GetSeen((ushort)to.Id).Should().BeTrue();
+
+        // Gen 3 keeps the seen flags in three places and SetSeen mirrors all of them; a save the game
+        // reads back would disagree with itself otherwise.
+        var bit = to.Id - 1;
+        var ofs = bit >> 3;
+        FlagUtil.GetFlag(save.Large, save.LargeBlock.SeenOffset2 + ofs, bit & 7).Should().BeTrue();
+        FlagUtil.GetFlag(save.Large, save.LargeBlock.SeenOffset3 + ofs, bit & 7).Should().BeTrue();
+    }
+
     private record Slot(string Nickname, string Data, bool Legal);
 
     private static List<Slot> Snapshot(SaveFile save) => save.PartyData
